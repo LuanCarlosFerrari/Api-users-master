@@ -24,8 +24,39 @@
     <div class="container mx-auto p-4">
         <h1 class="text-3xl font-bold text-clifford mb-4">Users API</h1>
 
-        <!-- User Creation Form -->
-        <div class="bg-white p-6 rounded-lg shadow-md mb-6">
+        <!-- Login Section -->
+        <div id="loginSection" class="bg-white p-6 rounded-lg shadow-md mb-6">
+            <h2 class="text-2xl font-semibold mb-4">Login</h2>
+            <form id="loginForm">
+                <div class="mb-4">
+                    <label for="loginEmail" class="block text-gray-700 text-sm font-bold mb-2">Email:</label>
+                    <input type="email" id="loginEmail" name="loginEmail" required
+                        class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                </div>
+                <div class="mb-4">
+                    <label for="loginPassword" class="block text-gray-700 text-sm font-bold mb-2">Password:</label>
+                    <input type="password" id="loginPassword" name="loginPassword" required
+                        class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 mb-3 leading-tight focus:outline-none focus:shadow-outline">
+                </div>
+                <button type="submit"
+                    class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
+                    Login
+                </button>
+            </form>
+            <p id="loginMessage" class="mt-3 text-sm"></p>
+        </div>
+
+        <!-- Logout Button - Initially hidden -->
+        <div id="logoutSection" class="mb-6" style="display: none;">
+            <p id="welcomeMessage" class="mb-2 text-lg"></p>
+            <button id="logoutButton"
+                class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
+                Logout
+            </button>
+        </div>
+
+        <!-- User Creation Form - Initially hidden, shown on login IF ADMIN -->
+        <div id="createUserSection" class="bg-white p-6 rounded-lg shadow-md mb-6" style="display: none;">
             <h2 class="text-2xl font-semibold mb-4">Create User</h2>
             <form id="createUserForm">
                 <div class="mb-4">
@@ -43,6 +74,14 @@
                     <input type="password" id="password" name="password" required
                         class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 mb-3 leading-tight focus:outline-none focus:shadow-outline">
                 </div>
+                <div class="mb-4">
+                    <label for="role" class="block text-gray-700 text-sm font-bold mb-2">Role:</label>
+                    <select id="role" name="role"
+                        class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                        <option value="standard" selected>Standard</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                </div>
                 <button type="submit"
                     class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
                     Create User
@@ -50,34 +89,173 @@
             </form>
         </div>
 
-        <!-- User List -->
-        <div class="bg-white p-6 rounded-lg shadow-md">
+        <!-- User List - Initially hidden, shown on login -->
+        <div id="userListSection" class="bg-white p-6 rounded-lg shadow-md" style="display: none;">
             <h2 class="text-2xl font-semibold mb-4">User List</h2>
             <ul id="userList" class="space-y-2">
                 <!-- Users will be listed here -->
             </ul>
         </div>
+
+        <!-- Edit User Modal/Form (Initially Hidden) -->
+        <div id="editUserModal"
+            class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center"
+            style="display: none;">
+            <div class="bg-white p-8 rounded-lg shadow-xl w-full max-w-md mx-auto">
+                <h2 class="text-2xl font-semibold mb-6">Edit User</h2>
+                <form id="editUserForm">
+                    <input type="hidden" id="editUserId" name="editUserId"> <!-- To store original email or ID -->
+                    <div class="mb-4">
+                        <label for="editUsername" class="block text-gray-700 text-sm font-bold mb-2">Username:</label>
+                        <input type="text" id="editUsername" name="editUsername" required
+                            class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                    </div>
+                    <div class="mb-4">
+                        <label for="editEmail" class="block text-gray-700 text-sm font-bold mb-2">Email:</label>
+                        <input type="email" id="editEmail" name="editEmail" required
+                            class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                    </div>
+                    <div class="mb-4">
+                        <label for="editRole" class="block text-gray-700 text-sm font-bold mb-2">Role: (standard,
+                            admin)</label>
+                        <input type="text" id="editRole" name="editRole"
+                            class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                    </div>
+                    <div class="flex items-center justify-between mt-6">
+                        <button type="submit"
+                            class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
+                            Save Changes
+                        </button>
+                        <button type="button" id="cancelEditButton"
+                            class="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
+                            Cancel
+                        </button>
+                    </div>
+                </form>
+                <p id="editUserMessage" class="mt-4 text-sm"></p>
+            </div>
+        </div>
+
     </div>
 
     <script>
-        const API_URL = 'http://localhost:3000/api/users'; // Adjust if your API endpoint is different
+        const API_URL_USERS = 'http://localhost:3000/api/users';
+        const API_URL_LOGIN = 'http://localhost:3000/auth/login';
+        const API_URL_ADMIN_UPDATE = 'http://localhost:3000/auth/dashboard/admin/update';
+        const API_URL_ADMIN_DELETE_BASE = 'http://localhost:3000/auth/dashboard/admin'; // Base for DELETE
 
         const createUserForm = document.getElementById('createUserForm');
         const userList = document.getElementById('userList');
+        const loginForm = document.getElementById('loginForm');
+        const loginEmailInput = document.getElementById('loginEmail');
+        const loginPasswordInput = document.getElementById('loginPassword');
+        const loginMessage = document.getElementById('loginMessage');
+        const loginSection = document.getElementById('loginSection');
+        const logoutSection = document.getElementById('logoutSection');
+        const logoutButton = document.getElementById('logoutButton');
+        const welcomeMessage = document.getElementById('welcomeMessage');
+        const createUserSection = document.getElementById('createUserSection');
+        const userListSection = document.getElementById('userListSection');
+
+        const editUserModal = document.getElementById('editUserModal');
+        const editUserForm = document.getElementById('editUserForm');
+        const editUserIdInput = document.getElementById('editUserId');
+        const editUsernameInput = document.getElementById('editUsername');
+        const editEmailInput = document.getElementById('editEmail');
+        const editRoleInput = document.getElementById('editRole');
+        const cancelEditButton = document.getElementById('cancelEditButton');
+        const editUserMessage = document.getElementById('editUserMessage');
+
+        // Function to store token
+        function storeToken(token) {
+            localStorage.setItem('authToken', token);
+        }
+
+        // Function to store user info (including role)
+        function storeUserInfo(user) {
+            localStorage.setItem('loggedInUser', JSON.stringify(user));
+        }
+
+        // Function to get user info
+        function getUserInfo() {
+            const user = localStorage.getItem('loggedInUser');
+            return user ? JSON.parse(user) : null;
+        }
+
+        // Function to get token
+        function getToken() {
+            return localStorage.getItem('authToken');
+        }
+
+        // Function to remove token
+        function removeToken() {
+            localStorage.removeItem('authToken');
+        }
+
+        // Function to remove user info
+        function removeUserInfo() {
+            localStorage.removeItem('loggedInUser');
+        }
+
+        // Update UI based on login state and role
+        function updateLoginUI() {
+            const token = getToken();
+            const userInfo = getUserInfo();
+
+            if (token && userInfo) {
+                loginSection.style.display = 'none';
+                logoutSection.style.display = 'block';
+                userListSection.style.display = 'block';
+                welcomeMessage.textContent = `Welcome, ${userInfo.username}! (Role: ${userInfo.role})`;
+
+                // Show create user section only if user is admin
+                if (userInfo.role === 'admin') {
+                    createUserSection.style.display = 'block';
+                } else {
+                    createUserSection.style.display = 'none';
+                }
+            } else {
+                loginSection.style.display = 'block';
+                logoutSection.style.display = 'none';
+                createUserSection.style.display = 'none';
+                userListSection.style.display = 'none';
+                welcomeMessage.textContent = '';
+            }
+        }
+
 
         // Function to fetch and display users
         async function fetchUsers() {
             try {
-                const response = await fetch(API_URL);
+                const response = await fetch(API_URL_USERS);
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 const users = await response.json();
-                userList.innerHTML = ''; // Clear existing list
+                userList.innerHTML = '';
                 users.forEach(user => {
                     const listItem = document.createElement('li');
-                    listItem.className = 'p-3 bg-gray-50 rounded shadow';
-                    listItem.textContent = `ID: ${user.id}, Username: ${user.username}, Email: ${user.email}`;
+                    listItem.className = 'p-3 bg-gray-50 rounded shadow flex justify-between items-center';
+
+                    const userInfo = document.createElement('span');
+                    userInfo.textContent = `ID: ${user.id}, Username: ${user.username}, Email: ${user.email}`;
+                    listItem.appendChild(userInfo);
+
+                    const actionsDiv = document.createElement('div');
+                    if (getToken()) { // Show buttons if logged in
+                        const editButton = document.createElement('button');
+                        editButton.textContent = 'Edit';
+                        editButton.className = 'bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-1 px-2 rounded ml-2 text-sm';
+                        editButton.onclick = () => handleShowEditUserForm(user);
+                        actionsDiv.appendChild(editButton);
+
+                        const deleteButton = document.createElement('button');
+                        deleteButton.textContent = 'Delete';
+                        deleteButton.className = 'bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded ml-2 text-sm';
+                        deleteButton.onclick = () => handleDeleteUser(user.email, user.username);
+                        actionsDiv.appendChild(deleteButton);
+                    }
+                    listItem.appendChild(actionsDiv);
                     userList.appendChild(listItem);
                 });
             } catch (error) {
@@ -92,33 +270,234 @@
             const username = event.target.username.value;
             const email = event.target.email.value;
             const password = event.target.password.value;
+            const role = event.target.role.value;
+            const token = getToken();
+            const userInfo = getUserInfo(); // Get user info to check role
+
+            const headers = {
+                'Content-Type': 'application/json',
+            };
+
+            // If the user is an admin and a token exists, add Authorization header
+            // This assumes the POST /api/users route is protected and requires admin rights
+            if (token && userInfo && userInfo.role === 'admin') {
+                headers['Authorization'] = `Bearer ${token}`;
+            } else if (userInfo && userInfo.role !== 'admin') {
+                // If user is not admin, but createUserSection was somehow visible, prevent creation
+                alert('You do not have permission to create users.');
+                return;
+            }
+            // If no token (e.g. public creation allowed, though createUserSection should be hidden then)
+            // or if token is present but role check isn't strictly for admin for this specific endpoint
+            // the request will proceed. The backend will ultimately decide.
 
             try {
-                const response = await fetch(API_URL, {
+                const response = await fetch(API_URL_USERS, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ username, email, password }),
+                    headers: headers, // Use the headers object
+                    body: JSON.stringify({ username, email, password, role }),
                 });
 
                 if (!response.ok) {
-                    const errorData = await response.json();
+                    const errorData = await response.json().catch(() => ({ message: 'Failed to parse error response' }));
                     throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
                 }
 
                 const newUser = await response.json();
                 console.log('User created:', newUser);
-                createUserForm.reset(); // Reset form
-                fetchUsers(); // Refresh user list
+                createUserForm.reset();
+                fetchUsers();
             } catch (error) {
                 console.error('Error creating user:', error);
                 alert(`Error creating user: ${error.message}`);
             }
         });
 
-        // Initial fetch of users
-        fetchUsers();
+        // Function to handle login
+        loginForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const email = loginEmailInput.value;
+            const password = loginPasswordInput.value;
+            loginMessage.textContent = ''; // Clear previous messages
+
+            try {
+                const response = await fetch(API_URL_LOGIN, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ email, password }),
+                });
+
+                const responseData = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(responseData.message || `HTTP error! status: ${response.status}`);
+                }
+
+                // The /auth/login endpoint now returns token and user object with role
+                if (responseData.token && responseData.user) {
+                    storeToken(responseData.token);
+                    storeUserInfo(responseData.user); // Store user object which includes username and role
+                    loginMessage.textContent = 'Login successful!';
+                    loginMessage.className = 'mt-3 text-sm text-green-600';
+                    updateLoginUI();
+                    fetchUsers();
+                } else {
+                    throw new Error(responseData.message || 'Login failed: Invalid response from server.');
+                }
+
+            } catch (error) {
+                console.error('Login error:', error);
+                loginMessage.textContent = `Login failed: ${error.message}`;
+                loginMessage.className = 'mt-3 text-sm text-red-600';
+                removeToken();
+                removeUserInfo(); // Clear user info on failed login
+                updateLoginUI();
+            }
+        });
+
+        // Function to handle logout
+        logoutButton.addEventListener('click', () => {
+            removeToken();
+            removeUserInfo(); // Clear user info on logout
+            loginMessage.textContent = 'You have been logged out.';
+            loginMessage.className = 'mt-3 text-sm text-blue-600';
+            updateLoginUI();
+            fetchUsers();
+        });
+
+        // Function to show and populate the edit user form
+        function handleShowEditUserForm(user) {
+            editUserIdInput.value = user.email; // Use current email to identify user for update
+            editUsernameInput.value = user.username;
+            editEmailInput.value = user.email;
+            // The API expects 'newRole', and our user object from GET /api/users doesn't have role.
+            // We'd need to fetch the full user details OR assume a default/allow admin to set.
+            // For now, we will try to get it from the user object if it exists
+            editRoleInput.value = user.role || ''; // Prefill role if available
+            editUserMessage.textContent = '';
+            editUserModal.style.display = 'flex';
+        }
+
+        // Event listener for submitting the edit user form
+        editUserForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const originalEmail = editUserIdInput.value; // This is the key to find the user
+            const newName = editUsernameInput.value;
+            const newEmail = editEmailInput.value;
+            const newRole = editRoleInput.value;
+            const token = getToken();
+
+            if (!token) {
+                editUserMessage.textContent = 'Authentication required. Please login.';
+                editUserMessage.className = 'mt-4 text-sm text-red-600';
+                return;
+            }
+
+            try {
+                const response = await fetch(API_URL_ADMIN_UPDATE, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        email: originalEmail, // API expects current email to find user
+                        newName: newName,
+                        newEmail: newEmail,
+                        newRole: newRole
+                    })
+                });
+
+                const responseData = await response.json().catch(() => ({ message: 'Failed to parse server response.' }));
+
+                if (!response.ok) {
+                    throw new Error(responseData.message || `HTTP error! status: ${response.status}`);
+                }
+
+                editUserMessage.textContent = 'User updated successfully!';
+                editUserMessage.className = 'mt-4 text-sm text-green-600';
+                fetchUsers(); // Refresh the list
+                setTimeout(() => {
+                    editUserModal.style.display = 'none';
+                }, 1500);
+
+            } catch (error) {
+                console.error('Error updating user:', error);
+                editUserMessage.textContent = `Error: ${error.message}`;
+                editUserMessage.className = 'mt-4 text-sm text-red-600';
+            }
+        });
+
+        // Event listener for cancelling edit
+        cancelEditButton.addEventListener('click', () => {
+            editUserModal.style.display = 'none';
+        });
+
+        // Function to handle user deletion
+        async function handleDeleteUser(userEmail, username) {
+            if (!confirm(`Are you sure you want to delete user: ${username} (${userEmail})?`)) {
+                return;
+            }
+
+            const token = getToken();
+            if (!token) {
+                alert('Authentication required. Please login.');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL_ADMIN_DELETE_BASE}/${userEmail}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (!response.ok) {
+                    // DELETE might not return JSON, especially on error, or even on success (204 No Content)
+                    let errorMsg = `HTTP error! status: ${response.status}`;
+                    try {
+                        const errorData = await response.json();
+                        errorMsg = errorData.message || errorMsg;
+                    } catch (e) {
+                        // Ignore if response is not JSON
+                        if (response.status === 204) { // Successfully deleted
+                            alert(`User ${username} deleted successfully.`);
+                            fetchUsers();
+                            return;
+                        }
+                    }
+                    throw new Error(errorMsg);
+                }
+
+                // Handle 204 No Content for successful deletion
+                if (response.status === 204) {
+                    alert(`User ${username} deleted successfully.`);
+                } else {
+                    // If API returns JSON on successful delete (e.g. a confirmation message)
+                    const responseData = await response.json().catch(() => null);
+                    alert(responseData ? responseData.message : `User ${username} deleted successfully.`);
+                }
+                fetchUsers(); // Refresh the list
+
+            } catch (error) {
+                console.error('Error deleting user:', error);
+                alert(`Error deleting user: ${error.message}`);
+            }
+        }
+
+        // Initial setup on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            updateLoginUI();
+            fetchUsers();
+            // Ensure API_URL_LOGIN is correct, it was /test/login, now should be /auth/login
+            // This is a check, the actual constant is defined at the top.
+            if (API_URL_LOGIN !== 'http://localhost:3000/auth/login') {
+                console.warn('API_URL_LOGIN might be outdated. Expected /auth/login.');
+            }
+        });
     </script>
 </body>
 
