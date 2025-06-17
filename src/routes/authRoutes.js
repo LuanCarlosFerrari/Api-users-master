@@ -1,14 +1,10 @@
 const express = require('express')
-const jwt = require('jsonwebtoken'); // Added
+const jwt = require('jsonwebtoken');
 const { middlewareDashboard, authMiddleware } = require('../middlewares/authMiddlewares')
-const users = require('../models/users')
+const usersModel = require('../models/users')
 
 const authRouter = express.Router()
-const secretKey = 'u924fnw9eufba9b5'; // Added (ensure this is consistent with authMiddlewares.js or centralized)
-
-function findUser(email) {
-    return users.find(user => user.email === email)
-}
+const secretKey = 'u924fnw9eufba9b5'; // Certifique-se de centralizar isso em produção
 
 /**
  * @swagger
@@ -54,40 +50,38 @@ function findUser(email) {
  *       404:
  *         description: User not found
  */
-authRouter.post('/login', (req, res) => {
+authRouter.post('/login', async (req, res) => {
     const { email, password } = req.body;
-
     if (!email || !password) {
         return res.status(400).json({ message: 'Email and password are required' });
     }
-
-    const user = users.find(u => u.email === email);
-
-    if (!user) {
-        return res.status(404).json({ message: 'User not found' });
-    }
-
-    // IMPORTANT: In a real application, passwords should be hashed and compared securely.
-    // For this example, we are doing a plain text comparison.
-    if (user.password !== password) {
-        return res.status(401).json({ message: 'Invalid credentials' });
-    }
-
-    // Include role in the JWT payload
-    const token = jwt.sign({ username: user.username, role: user.role }, secretKey, { expiresIn: '1h' });
-
-    // Return token and user info (including role)
-    res.status(200).json({
-        token,
-        user: {
-            id: user.id,
-            username: user.username,
-            email: user.email,
-            role: user.role
+    try {
+        const user = await usersModel.getUserByEmail(email);
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
         }
-    });
+        // IMPORTANTE: Em produção, use hash de senha!
+        if (user.password !== password) {
+            return res.status(401).json({ message: 'Invalid credentials' });
+        }
+        const token = jwt.sign({ username: user.username, email: user.email, role: user.role }, secretKey, { expiresIn: '1h' });
+        res.status(200).json({
+            token,
+            user: {
+                id: user.id,
+                username: user.username,
+                email: user.email,
+                role: user.role
+            }
+        });
+    } catch (error) {
+        console.error('Erro no login:', error);
+        if (error && error.stack) {
+            console.error(error.stack);
+        }
+        res.status(500).json({ message: 'Erro no login', error: error.message });
+    }
 });
-
 
 /**
  * @swagger
@@ -122,55 +116,63 @@ authRouter.get('/dashboard/admin', authMiddleware, (req, res) => {
     res.status(200).json({ message: `Welcome to the admin dashboard ${req.authenticatedUser.username}!` })
 })
 
-authRouter.get('/dashboard/admin/show', authMiddleware, (req, res) => {
-    const { username, email } = req.body
 
-    const user = findUser(email)
-
-    if (!user) {
-        return res.status(404).json({ message: 'User not found' })
+// ADMIN SHOW USER BY EMAIL
+authRouter.get('/dashboard/admin/show', authMiddleware, async (req, res) => {
+    const { email } = req.body;
+    try {
+        const user = await usersModel.getUserByEmail(email);
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+        res.status(200).json({ message: `User ${user.username} found!`, user });
+    } catch (error) {
+        console.error('Erro ao buscar usuário:', error);
+        res.status(500).json({ message: 'Erro ao buscar usuário' });
     }
+});
 
-    res.status(200).json({ message: `User ${username} found!`, user })
-})
-
-authRouter.post('/dashboard/admin/update', authMiddleware, (req, res) => {
-    const { email, newName, newEmail, newRole } = req.body
-
-    const user = findUser(email)
-
-    if (!user) {
-        return res.status(404).json({ message: 'User not found' })
+// ADMIN UPDATE USER
+authRouter.post('/dashboard/admin/update', authMiddleware, async (req, res) => {
+    const { email, newName, newEmail, newRole } = req.body;
+    try {
+        const user = await usersModel.getUserByEmail(email);
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+        // Verifica se o novo email já existe em outro usuário
+        if (newEmail) {
+            const existing = await usersModel.getUserByEmail(newEmail);
+            if (existing && existing.id !== user.id) {
+                return res.status(409).json({ message: 'Email already registered by another user' });
+            }
+        }
+        const updatedUser = await usersModel.updateUser(user.id, {
+            username: newName || user.username,
+            email: newEmail || user.email,
+            role: newRole || user.role
+        });
+        res.status(201).json({ message: `User ${updatedUser.username} updated!`, user: updatedUser });
+    } catch (error) {
+        console.error('Erro ao atualizar usuário:', error);
+        res.status(500).json({ message: 'Erro ao atualizar usuário' });
     }
+});
 
-    if (newName) {
-        user.username = newName
+// ADMIN DELETE USER BY EMAIL
+authRouter.delete('/dashboard/admin/:email', authMiddleware, async (req, res) => {
+    const { email } = req.params;
+    try {
+        const user = await usersModel.getUserByEmail(email);
+        if (!user) {
+            return res.status(404).json({ message: 'User not Found!' });
+        }
+        await usersModel.deleteUser(user.id);
+        res.status(204).end();
+    } catch (error) {
+        console.error('Erro ao remover usuário:', error);
+        res.status(500).json({ message: 'Erro ao remover usuário' });
     }
-
-    if (newEmail) {
-        user.email = newEmail
-    }
-
-    if (newRole) {
-        user.role = newRole
-    }
-
-    res.status(201).json({ message: `User ${user.username} updated!`, user })
-
-})
-
-authRouter.delete('/dashboard/admin/:email', authMiddleware, (req, res) => {
-    const { email } = req.params
-
-    const userIndex = users.findIndex(user => user.email === email)
-
-    if (userIndex === -1) {
-        res.status(404).json({ message: "User not Found!" })
-    }
-
-    users.splice(userIndex, 1)
-
-    res.status(204).end()
-})
+});
 
 module.exports = authRouter
