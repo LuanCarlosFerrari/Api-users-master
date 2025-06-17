@@ -61,4 +61,66 @@ router.post('/users', authMiddleware, (req, res) => { // Added authMiddleware he
     res.status(201).json(userResponse);
 }); // Certifique-se de que este fechamento de rota está correto
 
+// PUT /api/users/:id - Atualizar um usuário existente
+router.put('/users/:id', authMiddleware, (req, res) => {
+    const userId = parseInt(req.params.id);
+    const { username, email, role } = req.body;
+
+    const userIndex = users.findIndex(user => user.id === userId);
+
+    if (userIndex === -1) {
+        return res.status(404).json({ message: 'User not found' });
+    }
+
+    const updatedUser = { ...users[userIndex] };
+
+    if (username) {
+        updatedUser.username = username;
+    }
+    if (email) {
+        // Regex simples para validação de email
+        if (/(?<=.{2})@(?=.{2,}\\..{2})/.test(email) === false) {
+            return res.status(400).json({ message: "Invalid e-mail format" });
+        }
+        // Verificar se o novo email já existe em outro usuário
+        const emailExists = users.find(user => user.email === email && user.id !== userId);
+        if (emailExists) {
+            return res.status(409).json({ message: 'Email already registered by another user' });
+        }
+        updatedUser.email = email;
+    }
+    if (role) {
+        const allowedRoles = ['standard', 'admin'];
+        if (!allowedRoles.includes(role)) {
+            return res.status(400).json({ message: 'Invalid role. Allowed roles are: standard, admin' });
+        }
+        updatedUser.role = role;
+    }
+
+    users[userIndex] = updatedUser;
+
+    // Retornar o usuário atualizado (sem a senha)
+    const userResponse = {
+        id: updatedUser.id,
+        username: updatedUser.username,
+        email: updatedUser.email,
+        role: updatedUser.role
+    };
+
+    res.status(200).json(userResponse);
+});
+
+// DELETE /api/users/:id - Remover um usuário
+router.delete('/users/:id', authMiddleware, (req, res) => {
+    const userId = parseInt(req.params.id);
+    const userIndex = users.findIndex(user => user.id === userId);
+
+    if (userIndex === -1) {
+        return res.status(404).json({ message: 'User not found' });
+    }
+
+    users.splice(userIndex, 1);
+    res.status(204).send(); // Ou res.status(200).json({ message: 'User deleted successfully' });
+});
+
 module.exports = router;
